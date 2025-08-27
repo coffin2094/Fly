@@ -1,9 +1,11 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { mySearchFormatter } from './formatters/flightSearchFormatter';
 import { decodeToken } from './miscellaneous/resultTokenEncoder';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 
 @Injectable()
 export class FlightService {
@@ -11,6 +13,7 @@ export class FlightService {
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
+    @InjectRedis() private readonly redisClient: Redis
   ) { }
 
   //NOTE:  Get Headers
@@ -69,12 +72,23 @@ export class FlightService {
 
   //NOTE: Fair Quote
   async updateFairQuote(payload: any) {
+
+    //HACK: check redis first
+    const tokenKey = payload.ResultToken;
+    const cachedResponse = await this.redisClient.get(tokenKey)
+    if (cachedResponse) {
+      return JSON.parse(cachedResponse)
+    }
+
     //HACK: decoding the token
     const decodedPayload = {
       ResultToken: decodeToken(payload.ResultToken)
     }
     const updateFairQuoteUrl = this.getUrl('fairQuote')
     const response = await this.runApi(decodedPayload, updateFairQuoteUrl)
+
+    //HACK: cache response in redis
+    await this.redisClient.set(tokenKey, JSON.stringify(response), 'EX', 300)
     return response;
   }
 
