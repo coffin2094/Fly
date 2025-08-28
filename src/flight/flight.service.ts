@@ -6,6 +6,11 @@ import { mySearchFormatter } from './formatters/flightSearchFormatter';
 import { decodeToken } from './miscellaneous/resultTokenEncoder';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Passenger } from './Entities/passenger.entity';
+import { generateAppReference } from './miscellaneous/genAppReference';
+import { myFairQuoteFormatter } from './formatters/fairQuoteFormatter';
 
 @Injectable()
 export class FlightService {
@@ -13,7 +18,8 @@ export class FlightService {
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
-    @InjectRedis() private readonly redisClient: Redis
+    @InjectRedis() private readonly redisClient: Redis,
+    @InjectRepository(Passenger) private readonly passengerRepo: Repository<Passenger>
   ) { }
 
   //NOTE:  Get Headers
@@ -89,13 +95,32 @@ export class FlightService {
 
     //HACK: cache response in redis
     await this.redisClient.set(tokenKey, JSON.stringify(response), 'EX', 300)
-    return response;
+
+    return myFairQuoteFormatter(response)
   }
 
   //NOTE: commitBooking
   async commitBooking(payload: any) {
     const commitBookingUrl = this.getUrl('commitBooking');
-    const response = await this.runApi(payload, commitBookingUrl)
+    const appReference = generateAppReference();
+
+    //HACK: save to db
+    const passengers = payload.Passengers.map((passenger) => {
+      return this.passengerRepo.create({
+        AppReference: appReference,
+        ...passenger
+      })
+    })
+    await this.passengerRepo.save(passengers)
+
+    //HACK: building payload for api
+    const bookingPayload = {
+      AppReference: appReference,
+      SequenceNumber: payload.SequenceNumber,
+      ResultToken: decodeToken(payload.ResultToken),
+      Passengers: payload.Passengers,
+    }
+    const response = await this.runApi(bookingPayload, commitBookingUrl)
     return response;
   }
 

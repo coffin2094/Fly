@@ -1,3 +1,5 @@
+import { encodeToken } from "../miscellaneous/resultTokenEncoder";
+
 export function myFairQuoteFormatter(raw: any) {
   const { Status, Message = 'no message' } = raw;
   const details = raw?.UpdateFareQuote?.FareQuoteDetails?.JourneyList;
@@ -70,7 +72,8 @@ export function myFairQuoteFormatter(raw: any) {
               },
             },
           },
-          ResultToken: details?.ResultToken,
+          ResultToken: encodeToken(details?.ResultToken),
+          // ResultToken: details?.ResultToken,
           Attr: {
             IsRefundable: details?.Attr?.IsRefundable,
             AirlineRemark: details?.Attr?.AirlineRemark,
