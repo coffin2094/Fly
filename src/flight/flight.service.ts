@@ -11,6 +11,7 @@ import { Repository } from 'typeorm';
 import { Passenger } from './Entities/passenger.entity';
 import { generateAppReference } from './miscellaneous/genAppReference';
 import { myFairQuoteFormatter } from './formatters/fairQuoteFormatter';
+import { formatCommitBookingResponse } from './formatters/commitBookingFormatter';
 
 @Injectable()
 export class FlightService {
@@ -121,7 +122,7 @@ export class FlightService {
       Passengers: payload.Passengers,
     }
     const response = await this.runApi(bookingPayload, commitBookingUrl)
-    return response;
+    return formatCommitBookingResponse(response);
   }
 
   //NOTE: holdTicket
